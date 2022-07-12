@@ -15,7 +15,9 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "sam:build": "sam build --template template.yaml --build-dir ./package --use-container",
+    "sam:deploy":"sam deploy --template-file ./package/template.yaml --stack-name template-deployment --resolve-s3 --s3-prefix template-bucket --no-fail-on-empty-changeset --capabilities CAPABILITY_NAMED_IAM"
   },
   "eslintConfig": {
     "extends": [

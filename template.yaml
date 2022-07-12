@@ -1,0 +1,164 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Generic Template
+
+Resources:
+  GenericTemplateTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    Properties:
+      TableName: GenericTemplateTable
+      AttributeDefinitions:
+        - AttributeName: ID
+          AttributeType: S
+      KeySchema:
+        - AttributeName: ID
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 10
+        WriteCapacityUnits: 20
+  
+  GenericTemplatePostLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: GenericTemplatePostLambda
+      CodeUri: backend/lambda/postGenericTemplateLambda
+      Handler: index.handler
+      Runtime: nodejs14.x
+      Architectures: 
+        - x86_64
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - "dynamodb:BatchGetItem"
+                - "dynamodb:GetItem"
+                - "dynamodb:Query"
+                - "dynamodb:Scan"
+                - "dynamodb:BatchWriteItem"
+                - "dynamodb:PutItem"
+                - "dynamodb:UpdateItem"
+              Resource: 'arn:aws:dynamodb:*:*:table/GenericTemplateTable'
+  
+  GenericTemplateGetLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: GenericTemplateGetLambda
+      CodeUri: backend/lambda/getGenericTemplateLambda
+      Handler: index.handler
+      Runtime: nodejs14.x
+      Architectures: 
+        - x86_64
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - "dynamodb:BatchGetItem"
+                - "dynamodb:GetItem"
+                - "dynamodb:Query"
+                - "dynamodb:Scan"
+                - "dynamodb:BatchWriteItem"
+                - "dynamodb:PutItem"
+                - "dynamodb:UpdateItem"
+              Resource: 'arn:aws:dynamodb:*:*:table/GenericTemplateTable'
+
+  APIGateway:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: GenericTemplateApi
+      Description: 'Api Template for any starter'
+      ApiKeySourceType: 'HEADER'
+
+  APIGatewayResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      PathPart: genericTemplate
+      RestApiId: !Ref APIGateway
+      ParentId: !GetAtt APIGateway.RootResourceId
+
+  APIGatewayPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref APIGateway
+      ResourceId: !Ref APIGatewayResource
+      HttpMethod: 'POST'
+      AuthorizationType: 'NONE'
+      ApiKeyRequired: true
+      Integration:
+        IntegrationHttpMethod: 'POST'
+        Type: 'AWS_PROXY'
+        TimeoutInMillis: 3000
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:GenericTemplatePostLambda/invocations'
+  
+  APIGatewayGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref APIGateway
+      ResourceId: !Ref APIGatewayResource
+      HttpMethod: 'GET'
+      AuthorizationType: 'NONE'
+      ApiKeyRequired: true
+      Integration:
+        IntegrationHttpMethod: 'POST'
+        Type: 'AWS_PROXY'
+        TimeoutInMillis: 3000
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:GenericTemplateGetLambda/invocations'
+  
+
+  APIGatewayApiKey:
+    Type: AWS::ApiGateway::ApiKey
+    Properties:
+      Name: 'generic-template-api-key'
+      Description: 'api key'
+      Enabled: true
+
+  APIGatewayDeployment:
+    DependsOn: 
+      - APIGatewayPostMethod
+      - APIGatewayGetMethod
+    Type: AWS::ApiGateway::Deployment
+    Properties:
+      RestApiId: !Ref APIGateway
+
+  APGatewayStage:
+    DependsOn: APIGatewayDeployment
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      StageName: default
+      DeploymentId: !Ref APIGatewayDeployment
+      RestApiId: !Ref APIGateway
+      Description: 'description'
+
+  APIGatewayUsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    Properties:
+      UsagePlanName: 'Generic Template Usage Plan'
+      Description: 'plan description'
+      ApiStages:
+        - ApiId: !Ref APIGateway
+          Stage: !Ref APGatewayStage
+
+  APIGatewayUsagePlanKey:
+    Type: AWS::ApiGateway::UsagePlanKey
+    Properties:
+      KeyId: !GetAtt APIGatewayApiKey.APIKeyId
+      KeyType: 'API_KEY'
+      UsagePlanId: !Ref APIGatewayUsagePlan
+
+  LambdaApiGatewayGetInvoke:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !GetAtt GenericTemplateGetLambda.Arn
+      Principal: 'apigateway.amazonaws.com'
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${APIGateway}/*/*/genericTemplate'
+    
+  LambdaApiGatewayPostInvoke:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !GetAtt GenericTemplatePostLambda.Arn
+      Principal: 'apigateway.amazonaws.com'
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${APIGateway}/*/*/genericTemplate'
